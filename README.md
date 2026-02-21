@@ -33,7 +33,7 @@ No scripts. No manual launching. Just race.
 
 ## vs iRacingManager
 
-If you have used [iRacingManager](https://github.com/Sebbe2010/iRacingManager) before, iGnition is a spiritual successor. Same idea, built differently:
+If you have used iRacingManager before, iGnition is a spiritual successor. Same idea, built differently:
 
 - Fresh UI with a dark theme and an iRacing-style light theme
 - Per-app start delays so tools that need a moment to initialize actually get one
