@@ -1,0 +1,40 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+.venv-*/
+
+# PyInstaller / build artefacts
+build/
+dist/
+*.egg-info/
+
+# Installer output
+installer/Output/
+installer/installer/
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# VS Code local settings
+.vscode/
+
+# Environment / secrets
+.env
+.env.*
+
+# Windows OS junk
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Temp / editor backup files
+*.tmp
+*.bak
+*.orig

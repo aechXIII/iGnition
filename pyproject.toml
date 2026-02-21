@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ignition"
+version = "0.1.0"
+description = "iGnition - iRacing companion app orchestrator"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "aech", url = "https://github.com/aechXIII" }]
+dependencies = [
+  "pillow>=10.0",
+  "platformdirs>=4.0",
+  "psutil>=5.9",
+  "pystray>=0.19",
+  "pywebview>=4.0",
+]
+
+[project.scripts]
+ignition = "ignition.__main__:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

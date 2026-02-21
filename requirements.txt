@@ -1,0 +1,5 @@
+platformdirs>=4.0
+pillow>=10.0
+psutil>=5.9
+pystray>=0.19
+pywebview>=4.0

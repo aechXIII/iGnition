@@ -1,0 +1,18 @@
+* text=auto
+
+*.ps1 text eol=crlf
+*.iss text eol=crlf
+*.py  text eol=lf
+*.js  text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md  text eol=lf
+*.toml text eol=lf
+*.txt  text eol=lf
+*.json text eol=lf
+*.svg  text eol=lf
+
+*.ico  binary
+*.png  binary
+*.exe  binary
+*.pyz  binary
