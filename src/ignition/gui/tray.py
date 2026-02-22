@@ -30,11 +30,13 @@ class SystemTray:
         on_quit: Callable[[], None],
         get_profiles: Callable[[], list[dict]] | None = None,
         on_switch_profile: Callable[[str], None] | None = None,
+        get_active_profile_name: Callable[[], str] | None = None,
     ) -> None:
         self.on_open = on_open
         self.on_quit = on_quit
         self._get_profiles = get_profiles
         self._on_switch_profile = on_switch_profile
+        self._get_active_profile_name = get_active_profile_name
         self._thread: threading.Thread | None = None
         self._icon = pystray.Icon(
             "iGnition",
@@ -83,6 +85,12 @@ class SystemTray:
         try:
             self._icon.menu = self._build_menu()
             self._icon.update_menu()
+            if self._get_active_profile_name is not None:
+                try:
+                    name = self._get_active_profile_name()
+                    self._icon.title = f"iGnition — {name}" if name else "iGnition"
+                except Exception:
+                    pass
         except Exception:
             pass
 

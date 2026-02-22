@@ -71,6 +71,10 @@
           <span class="status-dot" id="status-dot"></span>
           <span class="status-text" id="status-text">Offline</span>
         </div>
+        <div class="session-timer" id="session-timer" style="display:none">
+          <span class="session-timer-label">Session</span>
+          <span class="session-timer-value" id="session-timer-value">0:00:00</span>
+        </div>
 
         <div class="theme-switcher">
           <button class="theme-btn active" data-theme="dark">Dark</button>
@@ -217,6 +221,26 @@
                   <span class="toggle-track"></span>
                 </label>
               </div>
+              <div class="inset-divider"></div>
+              <div class="form-group" style="margin-top:16px">
+                <label class="form-label">Windows notifications</label>
+                <div class="radio-group">
+                  <label class="radio-label">
+                    <input type="radio" name="notification-mode" value="always" class="radio" checked />
+                    <div class="radio-content">
+                      <span class="radio-title">Enabled</span>
+                      <span class="radio-desc">Show a toast when a session starts.</span>
+                    </div>
+                  </label>
+                  <label class="radio-label">
+                    <input type="radio" name="notification-mode" value="never" class="radio" />
+                    <div class="radio-content">
+                      <span class="radio-title">Disabled</span>
+                      <span class="radio-desc">No Windows toast notifications.</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
             </div>
 
           </div>
@@ -271,6 +295,11 @@
           </div>
         </div>
         <div id="log-events-panel">
+          <div class="log-filter-bar" id="log-filter-bar">
+            <button class="log-filter-btn active" data-filter="all">All</button>
+            <button class="log-filter-btn" data-filter="error">Errors</button>
+            <button class="log-filter-btn" data-filter="session">Session</button>
+          </div>
           <div class="log-list" id="log-list">
             <div class="log-empty">No events yet. Start iRacing to see activity.</div>
           </div>
@@ -361,6 +390,25 @@
             <input type="checkbox" id="fm-kill-tree" class="checkbox" checked />
             <span>Kill entire process tree</span>
           </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="fm-restart-on-crash" class="checkbox" />
+            <span>Restart if process crashes during session</span>
+          </label>
+        </div>
+        <div class="form-group" id="fm-max-restarts-group" style="display:none;margin-top:12px">
+          <label class="form-label">Max restart attempts</label>
+          <div class="input-with-unit" style="max-width:140px">
+            <input type="number" id="fm-max-restarts" class="input" min="1" max="20" step="1" value="3" />
+            <span class="input-unit">times</span>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+          <label class="form-label">Shutdown grace period</label>
+          <div class="input-with-unit" style="max-width:140px">
+            <input type="number" id="fm-grace" class="input" min="0" max="30" step="0.5" value="0" />
+            <span class="input-unit">sec</span>
+          </div>
+          <p class="form-hint">Wait this long for the app to close cleanly before force-killing it. 0 = instant kill.</p>
         </div>
       </div>
       <div class="modal-footer">
@@ -380,6 +428,32 @@
       <div class="modal-body">
         <input type="hidden" id="triggers-profile-id" />
         <div class="form-group">
+          <label class="form-label">Start when</label>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="trigger-mode-profile" value="ui" class="radio" />
+              <div class="radio-content">
+                <span class="radio-title">iRacing UI opens</span>
+                <span class="radio-desc">Monitors <code>iRacingUI.exe</code></span>
+              </div>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="trigger-mode-profile" value="race" class="radio" />
+              <div class="radio-content">
+                <span class="radio-title">Race starts</span>
+                <span class="radio-desc">Monitors <code>iRacingSim64DX11.exe</code></span>
+              </div>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="trigger-mode-profile" value="custom" class="radio" checked />
+              <div class="radio-content">
+                <span class="radio-title">Custom</span>
+                <span class="radio-desc">Manually specify process names below</span>
+              </div>
+            </label>
+          </div>
+        </div>
+        <div class="form-group" id="triggers-custom-group">
           <label class="form-label">
             Comma-separated process names
           </label>

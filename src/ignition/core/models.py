@@ -15,6 +15,9 @@ class ManagedApp:
     start_if_already_running: bool = False
     kill_on_iracing_exit: bool = True
     kill_process_tree: bool = True
+    shutdown_grace_seconds: float = 0.0
+    restart_on_crash: bool = False
+    max_restart_attempts: int = 3
     enabled: bool = True
     wait_for_process: str = ""
     wait_timeout_seconds: float = 30.0
@@ -35,6 +38,9 @@ class ManagedApp:
             "start_if_already_running": self.start_if_already_running,
             "kill_on_iracing_exit": self.kill_on_iracing_exit,
             "kill_process_tree": self.kill_process_tree,
+            "shutdown_grace_seconds": self.shutdown_grace_seconds,
+            "restart_on_crash": self.restart_on_crash,
+            "max_restart_attempts": self.max_restart_attempts,
             "enabled": self.enabled,
             "wait_for_process": self.wait_for_process,
             "wait_timeout_seconds": self.wait_timeout_seconds,
@@ -53,6 +59,9 @@ class ManagedApp:
             start_if_already_running=bool(raw.get("start_if_already_running") or False),
             kill_on_iracing_exit=bool(raw.get("kill_on_iracing_exit", True)),
             kill_process_tree=bool(raw.get("kill_process_tree", True)),
+            shutdown_grace_seconds=float(raw.get("shutdown_grace_seconds") or 0.0),
+            restart_on_crash=bool(raw.get("restart_on_crash") or False),
+            max_restart_attempts=int(raw.get("max_restart_attempts") or 3),
             enabled=bool(raw.get("enabled", True)),
             wait_for_process=str(raw.get("wait_for_process") or ""),
             wait_timeout_seconds=float(raw.get("wait_timeout_seconds") or 30.0),
@@ -67,6 +76,7 @@ class Profile:
     trigger_process_names: list[str] = field(default_factory=list)
     apps: list[ManagedApp] = field(default_factory=list)
     color: str = ""
+    trigger_mode: str = ""  # "" = inherit global | "ui" | "race" | "custom"
 
     @classmethod
     def create_default(cls) -> "Profile":
@@ -86,6 +96,7 @@ class Profile:
             "trigger_process_names": list(self.trigger_process_names),
             "apps": [a.to_dict() for a in self.apps],
             "color": self.color,
+            "trigger_mode": self.trigger_mode,
         }
 
     @classmethod
@@ -98,6 +109,7 @@ class Profile:
             trigger_process_names=[str(x) for x in (raw.get("trigger_process_names") or [])],
             apps=[ManagedApp.from_dict(x) for x in apps_raw if isinstance(x, dict)],
             color=str(raw.get("color") or ""),
+            trigger_mode=str(raw.get("trigger_mode") or ""),
         )
 
 
@@ -110,6 +122,7 @@ class AppConfig:
     minimize_to_tray: bool = True
     iracing_exe_path: str = ""
     trigger_mode: str = "ui"  # "ui" = iRacingUI.exe, "race" = iRacingSim64DX11.exe
+    notification_mode: str = "always"  # "always" | "never"
 
     @classmethod
     def default(cls) -> "AppConfig":
@@ -133,6 +146,7 @@ class AppConfig:
             "minimize_to_tray": self.minimize_to_tray,
             "iracing_exe_path": self.iracing_exe_path,
             "trigger_mode": self.trigger_mode,
+            "notification_mode": self.notification_mode,
         }
 
     @classmethod
@@ -153,4 +167,5 @@ class AppConfig:
             minimize_to_tray=bool(raw.get("minimize_to_tray", True)),
             iracing_exe_path=str(raw.get("iracing_exe_path") or ""),
             trigger_mode=str(raw.get("trigger_mode") or "ui"),
+            notification_mode=str(raw.get("notification_mode") or "always"),
         )

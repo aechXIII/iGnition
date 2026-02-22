@@ -46,6 +46,7 @@ def _run_status_push(api: IgnitionApi, window: webview.Window, stop_event: threa
                 "paused":           status["paused"],
                 "session_type":     status.get("session_type"),
                 "running_app_ids":  status.get("running_app_ids", []),
+                "session_start_at": status.get("session_start_at"),
             })
             entries_js = json.dumps(new_entries)
             js = (
@@ -82,6 +83,7 @@ def run_webview(*, state: AppState, start_in_background: bool) -> int:
         on_quit=tray_quit,
         get_profiles=api.get_profiles,
         on_switch_profile=api.set_active_profile,
+        get_active_profile_name=api.get_active_profile_name,
     )
     tray.start()
 

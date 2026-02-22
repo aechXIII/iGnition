@@ -149,6 +149,33 @@ function callApi(method, ...args) {
 // Status push (called by runner.py via evaluate_js)
 
 let _runningAppIds = new Set();
+let _sessionTimerInterval = null;
+let _sessionTimerStartMs = null;
+
+function _startSessionTimer(isoStr) {
+  _sessionTimerStartMs = isoStr ? new Date(isoStr).getTime() : null;
+  const el = $('#session-timer');
+  const val = $('#session-timer-value');
+  if (!el || !val || !_sessionTimerStartMs) return;
+  el.style.display = '';
+  if (_sessionTimerInterval) clearInterval(_sessionTimerInterval);
+  const _tick = () => {
+    const secs = Math.floor((Date.now() - _sessionTimerStartMs) / 1000);
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    val.textContent = `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  };
+  _tick();
+  _sessionTimerInterval = setInterval(_tick, 1000);
+}
+
+function _stopSessionTimer() {
+  if (_sessionTimerInterval) { clearInterval(_sessionTimerInterval); _sessionTimerInterval = null; }
+  _sessionTimerStartMs = null;
+  const el = $('#session-timer');
+  if (el) el.style.display = 'none';
+}
 
 window.__ignitionStatusUpdate = function(status, newLogEntries) {
   const dot  = $('#status-dot');
@@ -161,7 +188,7 @@ window.__ignitionStatusUpdate = function(status, newLogEntries) {
     dot.classList.remove('online');
     text.textContent = 'iRacing · Offline';
   }
-  // Pause button state
+  // pause button state
   const pb = $('#pause-btn');
   if (pb) {
     pb.classList.toggle('paused', !!status.paused);
@@ -185,6 +212,12 @@ window.__ignitionStatusUpdate = function(status, newLogEntries) {
       [...prevRunning].some(id => !_runningAppIds.has(id))) {
     _updateAppRunningIndicators();
   }
+  // Session timer
+  if (status.iracing_running && status.session_start_at) {
+    if (!_sessionTimerStartMs) _startSessionTimer(status.session_start_at);
+  } else {
+    _stopSessionTimer();
+  }
   // Log entries
   if (newLogEntries && newLogEntries.length > 0) appendLogEntries(newLogEntries);
 };
@@ -192,6 +225,7 @@ window.__ignitionStatusUpdate = function(status, newLogEntries) {
 // Activity log buffer
 
 const _logEntries = [];
+let _logFilter = 'all';
 const _LOG_META = {
   launch:      { sym: '▶', cls: 'log-launch'      },
   stop:        { sym: '◼', cls: 'log-stop'         },
@@ -229,8 +263,16 @@ function renderLog() {
     list.innerHTML = '<div class="log-empty">No events yet. Start iRacing to see activity.</div>';
     return;
   }
+  const _SESSION_TYPES = new Set(['iracing_start', 'iracing_stop']);
+  const filtered = _logFilter === 'error' ? _logEntries.filter(e => e.type === 'error') :
+    _logFilter === 'session' ? _logEntries.filter(e => _SESSION_TYPES.has(e.type)) :
+    _logEntries;
+  if (!filtered.length) {
+    list.innerHTML = '<div class="log-empty">No matching events.</div>';
+    return;
+  }
   // show newest first, max 200 rows
-  list.innerHTML = [..._logEntries].reverse().slice(0, 200).map(e => {
+  list.innerHTML = [...filtered].reverse().slice(0, 200).map(e => {
     const meta = _LOG_META[e.type] || { sym: '·', cls: '' };
     const appSpan = e.app ? `<span class="log-app">${esc(e.app)}</span>` : '';
     return `<div class="log-row ${meta.cls}">` +
@@ -268,6 +310,14 @@ $$('[data-log-tab]').forEach(btn => {
     if (evPan)   evPan.style.display   = _logTab === 'events'  ? '' : 'none';
     if (histPan) histPan.style.display = _logTab === 'history' ? '' : 'none';
     if (_logTab === 'events') renderLog(); else renderHistory();
+  });
+});
+
+$$('[data-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    _logFilter = btn.dataset.filter;
+    $$('[data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === _logFilter));
+    renderLog();
   });
 });
 
@@ -553,6 +603,11 @@ $('#fm-wait-for').addEventListener('input', function() {
   if (g) g.style.display = this.value.trim() ? '' : 'none';
 });
 
+$('#fm-restart-on-crash').addEventListener('change', function() {
+  const g = $('#fm-max-restarts-group');
+  if (g) g.style.display = this.checked ? '' : 'none';
+});
+
 function openAppModal(appId) {
   if (!appId) {
     // New app — reset form
@@ -567,6 +622,10 @@ function openAppModal(appId) {
     $('#fm-allow-running').checked = false;
     $('#fm-kill-on-exit').checked  = true;
     $('#fm-kill-tree').checked     = true;
+    $('#fm-restart-on-crash').checked = false;
+    $('#fm-max-restarts').value = '3';
+    $('#fm-max-restarts-group').style.display = 'none';
+    $('#fm-grace').value = '0';
     $('#fm-wait-for').value = '';
     $('#fm-wait-timeout').value = '30';
     const _wtg = $('#fm-wait-timeout-group');
@@ -589,6 +648,10 @@ function openAppModal(appId) {
     $('#fm-allow-running').checked = !!a.start_if_already_running;
     $('#fm-kill-on-exit').checked  = a.kill_on_iracing_exit !== false;
     $('#fm-kill-tree').checked     = a.kill_process_tree !== false;
+    $('#fm-restart-on-crash').checked = !!a.restart_on_crash;
+    $('#fm-max-restarts').value   = a.max_restart_attempts || 3;
+    $('#fm-max-restarts-group').style.display = a.restart_on_crash ? '' : 'none';
+    $('#fm-grace').value   = a.shutdown_grace_seconds || 0;
     $('#fm-wait-for').value = a.wait_for_process || '';
     $('#fm-wait-timeout').value   = a.wait_timeout_seconds || 30;
     const _wtg2 = $('#fm-wait-timeout-group');
@@ -613,6 +676,9 @@ $('#app-modal-save').addEventListener('click', async () => {
     start_if_already_running: $('#fm-allow-running').checked,
     kill_on_iracing_exit: $('#fm-kill-on-exit').checked,
     kill_process_tree:    $('#fm-kill-tree').checked,
+    restart_on_crash:     $('#fm-restart-on-crash').checked,
+    max_restart_attempts: parseInt($('#fm-max-restarts').value) || 3,
+    shutdown_grace_seconds: parseFloat($('#fm-grace').value) || 0,
     wait_for_process:     $('#fm-wait-for').value.trim(),
     wait_timeout_seconds: parseFloat($('#fm-wait-timeout').value) || 30,
   };
@@ -735,6 +801,12 @@ function profileCard(p) {
           <path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>` : '';
+  const dupBtn = `<button class="icon-btn" title="Duplicate profile" data-action="duplicate">
+      <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+        <rect x="4" y="4" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M3 12V3a1 1 0 011-1h9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+    </button>`;
   const appCount = p.app_count != null ? p.app_count : '';
   const expandBtn = `<button class="icon-btn profile-expand-btn" title="Show apps" data-action="expand">
         <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -754,6 +826,7 @@ function profileCard(p) {
         <div class="profile-card-actions">
           ${activateBtn}
           ${expandBtn}
+          ${dupBtn}
           <button class="icon-btn" title="Color" data-action="color">
             <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
               <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/>
@@ -795,6 +868,8 @@ function bindProfileCardActions() {
     const delBtn   = card.querySelector('[data-action=delete]');
     if (actBtn)   actBtn.addEventListener('click',   () => activateProfile(id));
     if (expBtn)   expBtn.addEventListener('click',   () => toggleProfileAppsExpand(id, card));
+    const dupActBtn = card.querySelector('[data-action=duplicate]');
+    if (dupActBtn) dupActBtn.addEventListener('click', () => duplicateProfile(id));
     if (colorBtn) colorBtn.addEventListener('click', () => {
       const panel = card.querySelector(`[data-color-panel="${id}"]`);
       if (panel) panel.style.display = panel.style.display === 'none' ? '' : 'none';
@@ -845,6 +920,12 @@ async function toggleProfileAppsExpand(profileId, card) {
   }
 }
 
+async function duplicateProfile(id) {
+  const res = await callApi('duplicate_profile', id);
+  if (res && res.ok) { toast('Profile duplicated', 'success'); renderProfiles(); }
+  else toast((res && res.error) || 'Failed to duplicate profile', 'error');
+}
+
 async function activateProfile(id) {
   const res = await callApi('set_active_profile', id);
   if (res && res.ok) { toast('Active profile changed', 'success'); renderProfiles(); }
@@ -889,11 +970,36 @@ async function openTriggersModal(profileId) {
   if (!p) return;
   $('#triggers-profile-id').value = profileId;
   $('#triggers-input').value = (p.trigger_process_names || []).join(', ');
+  // Set trigger mode radio
+  const mode = p.trigger_mode || 'custom';
+  const modeRadio = document.querySelector(`input[name="trigger-mode-profile"][value="${mode}"]`);
+  if (modeRadio) modeRadio.checked = true;
+  const customGroup = $('#triggers-custom-group');
+  if (customGroup) customGroup.style.display = mode === 'custom' ? '' : 'none';
   openModal('triggers-modal-backdrop');
 }
 
+$$('input[name="trigger-mode-profile"]').forEach(r => {
+  r.addEventListener('change', () => {
+    const customGroup = $('#triggers-custom-group');
+    if (customGroup) customGroup.style.display = r.value === 'custom' ? '' : 'none';
+    if (r.value === 'ui')   $('#triggers-input').value = 'iRacingUI.exe';
+    if (r.value === 'race') $('#triggers-input').value = 'iRacingSim64DX11.exe';
+  });
+});
+
 $('#triggers-modal-save').addEventListener('click', async () => {
-  const id  = $('#triggers-profile-id').value;
+  const id   = $('#triggers-profile-id').value;
+  const mode = (document.querySelector('input[name="trigger-mode-profile"]:checked') || {}).value || 'custom';
+  if (mode !== 'custom') {
+    const res = await callApi('set_profile_trigger_mode', id, mode);
+    if (res && res.ok) {
+      closeModal('triggers-modal-backdrop');
+      toast('Triggers updated', 'success');
+      renderProfiles();
+    } else toast('Failed to update triggers', 'error');
+    return;
+  }
   const csv = $('#triggers-input').value.trim();
   const res = await callApi('set_profile_triggers', id, csv);
   if (res && res.ok) {
@@ -939,6 +1045,9 @@ function renderSettings() {
     const mode = s.trigger_mode || 'ui';
     const radio = document.querySelector(`input[name="trigger-mode"][value="${mode}"]`);
     if (radio) radio.checked = true;
+    const notifMode = s.notification_mode || 'always';
+    const notifRadio = document.querySelector(`input[name="notification-mode"][value="${notifMode}"]`);
+    if (notifRadio) notifRadio.checked = true;
     $('#autostart-toggle').checked = !!autostart;
     $('#config-path-label').textContent = cfgPath || '';
   }).catch(() => toast('Failed to load settings', 'error'));
@@ -961,6 +1070,7 @@ $('#save-settings-btn').addEventListener('click', async () => {
     minimize_to_tray:      $('#minimize-tray').checked,
     iracing_exe_path:      $('#iracing-path').value.trim(),
     trigger_mode:          mode,
+    notification_mode:     (document.querySelector('input[name="notification-mode"]:checked') || {}).value || 'always',
   };
   const res = await callApi('save_settings', JSON.stringify(settings));
   if (res && res.ok) toast('Settings saved', 'success');

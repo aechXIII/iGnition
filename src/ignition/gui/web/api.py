@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import os
@@ -71,12 +72,14 @@ class IgnitionApi:
         paused = self._state.controller.is_paused()
         session_type = self._state.controller.get_session_type() if iracing_running else None
         running_app_ids = self._state.controller.get_running_app_ids()
+        session_start_at = self._state.controller.get_session_start_at()
         return {
             "iracing_running": iracing_running,
             "managed_count": managed_count,
             "paused": paused,
             "session_type": session_type,
             "running_app_ids": running_app_ids,
+            "session_start_at": session_start_at,
         }
 
     def get_profiles(self) -> list[dict[str, Any]]:
@@ -115,6 +118,21 @@ class IgnitionApi:
         self._notify_profiles_changed()
         return {"ok": True}
 
+    def duplicate_profile(self, profile_id: str) -> dict[str, Any]:
+        cfg = self._state.config_store.config
+        source = next((p for p in cfg.profiles if p.profile_id == profile_id), None)
+        if source is None:
+            return {"ok": False, "error": "Profile not found."}
+        new_profile = copy.deepcopy(source)
+        new_profile.profile_id = str(uuid4())
+        new_profile.name = source.name + " (copy)"
+        for app in new_profile.apps:
+            app.app_id = str(uuid4())
+        cfg.profiles.append(new_profile)
+        self._state.config_store.save()
+        self._notify_profiles_changed()
+        return {"ok": True, "profile_id": new_profile.profile_id}
+
     def set_active_profile(self, profile_id: str) -> dict[str, Any]:
         cfg = self._state.config_store.config
         if not any(p.profile_id == profile_id for p in cfg.profiles):
@@ -133,6 +151,21 @@ class IgnitionApi:
         if profile is None:
             return {"ok": False, "error": "Profile not found."}
         profile.trigger_process_names = items
+        profile.trigger_mode = "custom"
+        self._state.config_store.save()
+        return {"ok": True}
+
+    def set_profile_trigger_mode(self, profile_id: str, mode: str) -> dict[str, Any]:
+        if mode not in ("ui", "race"):
+            return {"ok": False, "error": "Invalid mode."}
+        cfg = self._state.config_store.config
+        profile = next((p for p in cfg.profiles if p.profile_id == profile_id), None)
+        if profile is None:
+            return {"ok": False, "error": "Profile not found."}
+        profile.trigger_mode = mode
+        profile.trigger_process_names = (
+            ["iRacingUI.exe"] if mode == "ui" else ["iRacingSim64DX11.exe"]
+        )
         self._state.config_store.save()
         return {"ok": True}
 
@@ -429,6 +462,7 @@ class IgnitionApi:
             "minimize_to_tray": cfg.minimize_to_tray,
             "iracing_exe_path": cfg.iracing_exe_path,
             "trigger_mode": cfg.trigger_mode,
+            "notification_mode": cfg.notification_mode,
         }
 
     def save_settings(self, settings_json: str) -> dict[str, Any]:
@@ -458,6 +492,9 @@ class IgnitionApi:
                 if {x.lower() for x in profile.trigger_process_names} == old_names:
                     profile.trigger_process_names = list(new_names)
         cfg.trigger_mode = mode
+        cfg.notification_mode = str(raw.get("notification_mode") or "always")
+        if cfg.notification_mode not in ("always", "never"):
+            cfg.notification_mode = "always"
         self._state.config_store.save()
         return {"ok": True}
 

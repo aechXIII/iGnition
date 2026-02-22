@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.0] - 2026-02-22
+
+### Added
+- **Crash watchdog & auto-restart** — detects if a managed app exits unexpectedly and optionally restarts it up to a configurable number of attempts.
+- **Graceful shutdown** — per-app grace period: iGnition sends WM_CLOSE and waits before hard-killing.
+- **Per-profile trigger mode** — each profile can use UI, Race or Custom triggers independently of the global setting.
+- **Duplicate profile** — copy icon on profile cards clones the profile and all its apps.
+- **Log filter** — All / Errors / Session filter buttons above the activity log.
+- **Session timer** — elapsed HH:MM:SS counter in the sidebar during an active session.
+- **Configurable notifications** — Settings → Startup & Tray: Always or Never for the session-start toast.
+- **Active profile in tray tooltip** — icon tooltip shows "iGnition — ProfileName".
+
+---
+
 ## [0.2.0] - 2026-02-22
 
 ### Added

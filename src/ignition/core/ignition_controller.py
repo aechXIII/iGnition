@@ -9,11 +9,16 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import psutil
+
 from ignition.core.app_launcher import launch_executable
 from ignition.core.config_store import ConfigStore
 from ignition.core.iracing_monitor import IRacingMonitor
 from ignition.core.models import ManagedApp, Profile
-from ignition.core.process_killer import terminate_process, terminate_process_tree
+from ignition.core.process_killer import (
+    graceful_terminate_process,
+    graceful_terminate_process_tree,
+)
 from ignition.core.process_utils import any_process_name_running
 
 logger = logging.getLogger(__name__)
@@ -48,12 +53,22 @@ class IgnitionController:
         self._history_lock = threading.Lock()
         self._load_session_history()
 
+        # Watchdog (crash-restart)
+        self._watchdog_stop: threading.Event | None = None
+        self._restart_counts: dict[str, int] = {}
+
         self._monitor = IRacingMonitor(
             get_trigger_process_names=self._get_trigger_process_names,
             get_poll_interval_seconds=lambda: self._config_store.config.poll_interval_seconds,
             on_iracing_started=self._on_iracing_started,
             on_iracing_stopped=self._on_iracing_stopped,
         )
+
+    def get_session_start_at(self) -> str | None:
+        with self._lock:
+            if self._curr_session_start is None:
+                return None
+            return self._curr_session_start.isoformat(timespec="seconds")
 
     def get_status(self) -> tuple[bool, int]:
         with self._lock:
@@ -204,6 +219,48 @@ class IgnitionController:
             return []
         return list(profile.trigger_process_names)
 
+    def _watchdog_loop(self, stop: threading.Event) -> None:
+        while not stop.wait(2.0):
+            with self._lock:
+                if not self._iracing_running:
+                    break
+                items = list(self._running.items())
+            for app_id, running in items:
+                is_alive = True
+                try:
+                    proc = psutil.Process(running.pid)
+                    if not proc.is_running() or proc.status() == psutil.STATUS_ZOMBIE:
+                        is_alive = False
+                except psutil.NoSuchProcess:
+                    is_alive = False
+                if not is_alive:
+                    with self._lock:
+                        if app_id not in self._running:
+                            continue
+                        self._running.pop(app_id, None)
+                    if not running.app.restart_on_crash:
+                        self._log_event(
+                            "error", running.app.name,
+                            f"Process exited unexpectedly (pid {running.pid})",
+                        )
+                        continue
+                    count = self._restart_counts.get(app_id, 0)
+                    max_a = max(1, int(running.app.max_restart_attempts))
+                    if count >= max_a:
+                        self._log_event(
+                            "error", running.app.name,
+                            f"Crashed — max restarts ({max_a}) reached",
+                        )
+                        continue
+                    self._restart_counts[app_id] = count + 1
+                    self._log_event(
+                        "launch", running.app.name,
+                        f"Crashed — restarting (attempt {count + 1}/{max_a})",
+                    )
+                    threading.Thread(
+                        target=self._start_app, args=(running.app,), daemon=True
+                    ).start()
+
     def _on_iracing_started(self) -> None:
         with self._lock:
             self._iracing_running = True
@@ -223,6 +280,8 @@ class IgnitionController:
             self._curr_session_start = datetime.datetime.now()
             self._curr_session_apps = []
 
+        self._restart_counts.clear()
+
         for app in list(profile.apps):
             with self._lock:
                 if not self._iracing_running:
@@ -237,15 +296,23 @@ class IgnitionController:
                         break
             self._start_app(app)
 
+        stop = threading.Event()
+        self._watchdog_stop = stop
+        threading.Thread(
+            target=self._watchdog_loop, args=(stop,), name="watchdog", daemon=True
+        ).start()
+
         with self._lock:
             launched = len(self._curr_session_apps)
         if launched > 0:
-            msg = f"{launched} app{'s' if launched != 1 else ''} launched"
-            threading.Thread(
-                target=self._send_windows_toast,
-                args=("iGnition – Session started", msg),
-                daemon=True,
-            ).start()
+            notification_mode = self._config_store.config.notification_mode
+            if notification_mode != "never":
+                msg = f"{launched} app{'s' if launched != 1 else ''} launched"
+                threading.Thread(
+                    target=self._send_windows_toast,
+                    args=("iGnition – Session started", msg),
+                    daemon=True,
+                ).start()
 
     def _on_iracing_stopped(self) -> None:
         with self._lock:
@@ -254,6 +321,9 @@ class IgnitionController:
             session_apps = list(self._curr_session_apps)
             self._curr_session_start = None
             self._curr_session_apps = []
+        if self._watchdog_stop is not None:
+            self._watchdog_stop.set()
+            self._watchdog_stop = None
         self._log_event("iracing_stop", None, "iRacing closed — stopping apps")
         logger.info("iRacing closed: stop sequence")
         self._stop_all_managed(reason="iracing-exit")
@@ -340,10 +410,11 @@ class IgnitionController:
 
     @staticmethod
     def _terminate(running: RunningApp) -> None:
+        grace = float(running.app.shutdown_grace_seconds or 0.0)
         if running.app.kill_process_tree:
-            terminate_process_tree(running.pid)
+            graceful_terminate_process_tree(running.pid, grace)
         else:
-            terminate_process(running.pid)
+            graceful_terminate_process(running.pid, grace)
 
     def _find_app(self, app_id: str) -> ManagedApp | None:
         profile = self._get_active_profile()
