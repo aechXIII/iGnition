@@ -56,5 +56,5 @@ if ($Installer) {
     exit 1
   }
 
-  Write-Host "OK: installer\Output\iGnition-Setup-0.1.0.exe" -ForegroundColor Green
+  Write-Host "OK: installer\Output\iGnition-Setup-$((Select-String -Path installer\iGnition.iss -Pattern '#define AppVersion').Line -replace '.*\"(.+)\".*','$1').exe" -ForegroundColor Green
 }

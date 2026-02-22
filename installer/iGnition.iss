@@ -3,7 +3,7 @@
 ;        iscc installer\iGnition.iss  →  installer\Output\iGnition-Setup-0.1.0.exe
 
 #define AppName      "iGnition"
-#define AppVersion   "0.2.0"
+#define AppVersion   "0.3.0"
 #define AppPublisher "aech"
 #define AppURL       "https://github.com/aechXIII/iGnition"
 #define AppExeName   "iGnition.exe"
