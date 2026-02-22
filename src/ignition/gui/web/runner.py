@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import logging
 import sys
 import threading
+import time
 from pathlib import Path
 
 import webview
@@ -25,10 +27,7 @@ _ASSETS_DIR = _get_assets_dir()
 
 
 def _run_status_push(api: IgnitionApi, window: webview.Window, stop_event: threading.Event) -> None:
-    """Background thread: push iRacing status + log updates to the frontend every second."""
-    import json
-    import time
-
+    """Background thread: push iRacing status + log updates to the frontend."""
     last_log_seq = 0
 
     while not stop_event.is_set():
@@ -42,10 +41,11 @@ def _run_status_push(api: IgnitionApi, window: webview.Window, stop_event: threa
                 last_log_seq = new_entries[-1]["seq"] + 1
 
             status_js = json.dumps({
-                "iracing_running": status["iracing_running"],
-                "managed_count":   status["managed_count"],
-                "paused":          status["paused"],
-                "session_type":    status.get("session_type"),
+                "iracing_running":  status["iracing_running"],
+                "managed_count":    status["managed_count"],
+                "paused":           status["paused"],
+                "session_type":     status.get("session_type"),
+                "running_app_ids":  status.get("running_app_ids", []),
             })
             entries_js = json.dumps(new_entries)
             js = (

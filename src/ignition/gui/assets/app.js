@@ -148,6 +148,8 @@ function callApi(method, ...args) {
 
 // Status push (called by runner.py via evaluate_js)
 
+let _runningAppIds = new Set();
+
 window.__ignitionStatusUpdate = function(status, newLogEntries) {
   const dot  = $('#status-dot');
   const text = $('#status-text');
@@ -174,6 +176,14 @@ window.__ignitionStatusUpdate = function(status, newLogEntries) {
     } else {
       badge.style.display = 'none';
     }
+  }
+  // sync running indicators
+  const prevRunning = _runningAppIds;
+  _runningAppIds = new Set(status.running_app_ids || []);
+  if (prevRunning.size !== _runningAppIds.size ||
+      [..._runningAppIds].some(id => !prevRunning.has(id)) ||
+      [...prevRunning].some(id => !_runningAppIds.has(id))) {
+    _updateAppRunningIndicators();
   }
   // Log entries
   if (newLogEntries && newLogEntries.length > 0) appendLogEntries(newLogEntries);
@@ -204,6 +214,12 @@ function appendLogEntries(entries) {
   // update live if log page is open
   const logPage = $('#page-log');
   if (logPage && logPage.classList.contains('active')) renderLog();
+}
+
+function _updateAppRunningIndicators() {
+  $$('#apps-list .app-card').forEach(card => {
+    card.classList.toggle('running', _runningAppIds.has(card.dataset.id));
+  });
 }
 
 function renderLog() {
@@ -337,7 +353,15 @@ function renderApps() {
     _applyAppsView();
     loadAppIcons();
     setupDragReorder();
+    _applyAppsSearch();
   }).catch(() => toast('Failed to load apps', 'error'));
+  callApi('get_active_profile_name').then(name => {
+    const el = $('#active-profile-line');
+    if (el) {
+      if (name) { el.textContent = name; el.style.display = ''; }
+      else el.style.display = 'none';
+    }
+  }).catch(() => {});
 }
 
 // Deterministic accent color per app name initial
@@ -356,13 +380,15 @@ function appCard(a) {
   if (!a.kill_on_iracing_exit)    badges.push('<span class="app-badge keep">Keeps running</span>');
   if (a.enabled === false)        badges.push('<span class="app-badge" style="color:var(--text-muted)">Disabled</span>');
   const badgeHtml = badges.length ? `<div class="app-card-badges">${badges.join('')}</div>` : '';
+  const isRunning   = _runningAppIds.has(a.app_id);
   const disabledClass = a.enabled === false ? ' disabled' : '';
+  const runningClass  = isRunning ? ' running' : '';
   const toggleTitle = a.enabled !== false ? 'Disable app' : 'Enable app';
   const toggleIcon = a.enabled !== false
     ? `<svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.4"/></svg>`
     : `<svg viewBox="0 0 16 16" fill="none" width="14" height="14"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
   return `
-    <div class="app-card${disabledClass}" data-id="${esc(a.app_id)}" data-exe="${esc(a.executable_path)}" draggable="true">
+    <div class="app-card${disabledClass}${runningClass}" data-id="${esc(a.app_id)}" data-exe="${esc(a.executable_path)}" draggable="true">
       <div class="drag-handle" title="Drag to reorder">
         <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M3 5h10M3 8h10M3 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </div>
@@ -379,11 +405,15 @@ function appCard(a) {
         <div class="app-card-name">${esc(a.name)}</div>
         <div class="app-card-path" title="${esc(a.executable_path)}">${esc(a.executable_path)}</div>
         ${badgeHtml}
+        <div class="app-running-pip">Running</div>
       </div>
       <div class="app-card-actions">
         <button class="icon-btn" title="${esc(toggleTitle)}" data-action="toggle">${toggleIcon}</button>
         <button class="icon-btn" title="Test launch" data-action="test">
           <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M4 2l10 6-10 6V2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn stop-btn" title="Stop app" data-action="stop">
+          <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor"/></svg>
         </button>
         <button class="icon-btn" title="Edit" data-action="edit">
           <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
@@ -413,6 +443,15 @@ function bindAppCardActions() {
       const res = await callApi('test_launch_app', id);
       if (res && res.ok) toast('Test launch successful', 'success');
       else toast((res && res.error) || 'Launch failed', 'error');
+    });
+    const stopBtn = card.querySelector('[data-action=stop]');
+    if (stopBtn) stopBtn.addEventListener('click', async () => {
+      const res = await callApi('stop_app', id);
+      if (res && res.ok) {
+        toast('App stopped', 'info');
+        _runningAppIds.delete(id);
+        card.classList.remove('running');
+      } else toast((res && res.error) || 'Failed to stop app', 'error');
     });
     card.querySelector('[data-action=edit]').addEventListener('click', () => openAppModal(id));
     card.querySelector('[data-action=delete]').addEventListener('click', () => deleteApp(id));
@@ -958,6 +997,18 @@ $('#quit-btn').addEventListener('click', async () => {
 });
 
 // Boot
+
+// Apps search filter
+function _applyAppsSearch() {
+  const input = $('#apps-search');
+  const query = input ? input.value.trim().toLowerCase() : '';
+  $$('#apps-list .app-card').forEach(card => {
+    const nameEl = card.querySelector('.app-card-name');
+    const match  = !query || (nameEl && nameEl.textContent.toLowerCase().includes(query));
+    card.style.display = match ? '' : 'none';
+  });
+}
+$('#apps-search').addEventListener('input', _applyAppsSearch);
 
 function init() {
   _apiReady = true;

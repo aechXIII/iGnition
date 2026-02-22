@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+import subprocess
 import threading
 import time
 from dataclasses import dataclass
@@ -57,6 +58,10 @@ class IgnitionController:
     def get_status(self) -> tuple[bool, int]:
         with self._lock:
             return self._iracing_running, len(self._running)
+
+    def get_running_app_ids(self) -> list[str]:
+        with self._lock:
+            return list(self._running.keys())
 
     def is_paused(self) -> bool:
         return self._paused
@@ -128,7 +133,6 @@ class IgnitionController:
 
     @staticmethod
     def _send_windows_toast(title: str, body: str) -> None:
-        import subprocess
         t = title.replace("'", "''")
         b = body.replace("'", "''")
         ps = (

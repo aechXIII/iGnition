@@ -11,15 +11,6 @@
 
     <!-- Sidebar -->
     <aside id="sidebar">
-      <div class="brand">
-        <div class="brand-identity">
-          <div class="brand-logo">iG</div>
-          <div class="brand-text">
-            <span class="brand-name">iGnition</span>
-            <span class="brand-sub">iRacing companion</span>
-          </div>
-        </div>
-      </div>
 
       <div class="race-btn-wrap">
         <button class="race-btn" id="race-btn">
@@ -103,9 +94,11 @@
         <div class="page-header">
           <div>
             <h1>Apps</h1>
+            <div class="page-profile-line" id="active-profile-line" style="display:none"></div>
             <p>Applications launched when iRacing starts. Can be stopped automatically when iRacing closes.</p>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
+            <input type="search" id="apps-search" class="input apps-search" placeholder="Filter apps…" />
             <div class="view-toggle">
               <button class="view-btn active" data-view="card" id="view-card-btn" title="Card view">
                 <svg viewBox="0 0 16 16" fill="none" width="13" height="13"><rect x="1" y="1" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="1" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="1" y="9" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -114,6 +107,10 @@
                 <svg viewBox="0 0 16 16" fill="none" width="13" height="13"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
               </button>
             </div>
+            <button class="btn" id="template-picker-btn">
+              <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M2 3h5v5H2zM9 3h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+              Popular Apps
+            </button>
             <button class="btn btn-primary" id="add-app-btn">
               <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
               Add App
@@ -126,7 +123,8 @@
             <svg viewBox="0 0 48 48" fill="none" width="40" height="40" opacity=".35"><rect x="6" y="6" width="15" height="15" rx="3" stroke="currentColor" stroke-width="2"/><rect x="27" y="6" width="15" height="15" rx="3" stroke="currentColor" stroke-width="2"/><rect x="6" y="27" width="15" height="15" rx="3" stroke="currentColor" stroke-width="2"/><rect x="27" y="27" width="15" height="15" rx="3" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/></svg>
           </div>
           <div class="empty-title">No apps configured</div>
-          <div class="empty-hint">Click “Add App” to add an application that launches automatically with iRacing.</div>          <div style="margin-top:16px"><button class="btn" id="template-picker-btn">Browse Popular Apps&hellip;</button></div>        </div>
+          <div class="empty-hint">Click “Add App” or “Popular Apps” in the toolbar above to get started.</div>
+        </div>
       </section>
 
       <!-- Profiles page -->

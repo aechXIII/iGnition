@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import subprocess
 from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
 
 import webview
 
+from ignition.core.app_launcher import launch_executable
 from ignition.core.models import ManagedApp, Profile
 from ignition.core.state import AppState
 from ignition.core.windows_autostart import WindowsAutostart
@@ -23,6 +26,8 @@ class IgnitionApi:
         self._autostart = WindowsAutostart(app_name="iGnition")
         self._window: webview.Window | None = window
         self._icon_cache: dict[str, str | None] = {}
+        self._icon_cache_path = state.config_store.paths.config_dir / "icon-cache.json"
+        self._load_icon_cache()
         self._on_profiles_changed: Callable[[], None] | None = None
         self._force_quit_setter: Callable[[], None] | None = None
 
@@ -39,6 +44,25 @@ class IgnitionApi:
             except Exception:
                 pass
 
+    def _load_icon_cache(self) -> None:
+        try:
+            if self._icon_cache_path.exists():
+                data = json.loads(self._icon_cache_path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    self._icon_cache = {k: v for k, v in data.items()}
+        except Exception:
+            pass
+
+    def _save_icon_cache(self) -> None:
+        try:
+            self._icon_cache_path.parent.mkdir(parents=True, exist_ok=True)
+            self._icon_cache_path.write_text(
+                json.dumps(self._icon_cache, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+
     def bind_window(self, window: webview.Window) -> None:
         self._window = window
 
@@ -46,11 +70,13 @@ class IgnitionApi:
         iracing_running, managed_count = self._state.controller.get_status()
         paused = self._state.controller.is_paused()
         session_type = self._state.controller.get_session_type() if iracing_running else None
+        running_app_ids = self._state.controller.get_running_app_ids()
         return {
             "iracing_running": iracing_running,
             "managed_count": managed_count,
             "paused": paused,
             "session_type": session_type,
+            "running_app_ids": running_app_ids,
         }
 
     def get_profiles(self) -> list[dict[str, Any]]:
@@ -62,6 +88,9 @@ class IgnitionApi:
             d["app_count"] = len(profile.apps)
             result.append(d)
         return result
+
+    def get_active_profile_name(self) -> str:
+        return self._active_profile().name
 
     def add_profile(self, name: str) -> dict[str, Any]:
         name = name.strip()
@@ -219,7 +248,6 @@ class IgnitionApi:
         return {"ok": True, "enabled": app.enabled}
 
     def test_launch_app(self, app_id: str) -> dict[str, Any]:
-        from ignition.core.app_launcher import launch_executable
         profile = self._active_profile()
         app = next((a for a in profile.apps if a.app_id == app_id), None)
         if app is None:
@@ -283,7 +311,6 @@ class IgnitionApi:
         return {"ok": True}
 
     def get_common_apps(self) -> list[dict[str, Any]]:
-        import os
         candidates = [
             {"name": "SimHub", "paths": [
                 r"%LOCALAPPDATA%\SimHub\SimHub.exe",
@@ -319,6 +346,37 @@ class IgnitionApi:
                 r"C:\Program Files\Fanatec\Fanatec Software\FanatecApp.exe",
                 r"C:\Program Files (x86)\Fanatec\FanatecApp.exe",
             ]},
+            {"name": "OBS Studio", "paths": [
+                r"C:\Program Files\obs-studio\bin\64bit\obs64.exe",
+                r"C:\Program Files (x86)\obs-studio\bin\64bit\obs64.exe",
+            ]},
+            {"name": "Logitech G HUB", "paths": [
+                r"%LOCALAPPDATA%\LGHUB\lghub.exe",
+                r"C:\Program Files\LGHUB\lghub.exe",
+            ]},
+            {"name": "RTSS (RivaTuner Statistics Server)", "paths": [
+                r"C:\Program Files (x86)\RivaTuner Statistics Server\RTSS.exe",
+            ]},
+            {"name": "Helicorsa", "paths": [
+                r"%LOCALAPPDATA%\Helicorsa\Helicorsa.exe",
+                r"C:\Program Files\Helicorsa\Helicorsa.exe",
+            ]},
+            {"name": "Sim Dashboard Server", "paths": [
+                r"%LOCALAPPDATA%\Sim Dashboard Server\Sim Dashboard Server.exe",
+                r"C:\Program Files (x86)\Sim Dashboard Server\Sim Dashboard Server.exe",
+            ]},
+            {"name": "Garage 61", "paths": [
+                r"%LOCALAPPDATA%\Garage61\garage61.exe",
+                r"C:\Program Files\Garage61\garage61.exe",
+            ]},
+            {"name": "Pitskill", "paths": [
+                r"%LOCALAPPDATA%\Pitskill\Pitskill.exe",
+                r"C:\Program Files\Pitskill\Pitskill.exe",
+            ]},
+            {"name": "SRS (Simulated Racing System)", "paths": [
+                r"C:\Program Files (x86)\SRS\SRS.exe",
+                r"%LOCALAPPDATA%\SRS\SRS.exe",
+            ]},
         ]
         found = []
         for entry in candidates:
@@ -330,18 +388,17 @@ class IgnitionApi:
         return found
 
     def get_app_icon(self, exe_path: str) -> str | None:
-        import os
         if not exe_path or not os.path.isfile(exe_path):
             return None
         if exe_path in self._icon_cache:
             return self._icon_cache[exe_path]
         result = self._extract_exe_icon(exe_path)
         self._icon_cache[exe_path] = result
+        self._save_icon_cache()
         return result
 
     @staticmethod
     def _extract_exe_icon(exe_path: str) -> str | None:
-        import subprocess
         escaped = exe_path.replace("'", "''")
         ps = (
             "Add-Type -AssemblyName System.Drawing; "
@@ -390,19 +447,21 @@ class IgnitionApi:
         if mode not in ("ui", "race"):
             mode = "ui"
         if mode != cfg.trigger_mode:
-            trigger_map = {
+            _mode_defaults: dict[str, list[str]] = {
                 "ui":   ["iRacingUI.exe"],
                 "race": ["iRacingSim64DX11.exe"],
             }
+            old_names = {x.lower() for x in _mode_defaults.get(cfg.trigger_mode, [])}
+            new_names = _mode_defaults[mode]
             for profile in cfg.profiles:
-                profile.trigger_process_names = trigger_map[mode]
+                # skip profiles with custom triggers
+                if {x.lower() for x in profile.trigger_process_names} == old_names:
+                    profile.trigger_process_names = list(new_names)
         cfg.trigger_mode = mode
         self._state.config_store.save()
         return {"ok": True}
 
     def launch_iracing(self) -> dict[str, Any]:
-        import os
-        import subprocess
         cfg = self._state.config_store.config
         path = cfg.iracing_exe_path.strip()
 
@@ -520,11 +579,9 @@ class IgnitionApi:
             return {"ok": False, "error": str(exc)}
 
     def open_config_folder(self) -> None:
-        import os
         os.startfile(str(self._state.config_store.paths.config_dir))
 
     def open_log_folder(self) -> None:
-        import os
         os.startfile(str(self._state.config_store.paths.log_dir))
 
     def get_config_path(self) -> str:

@@ -71,47 +71,6 @@ html, body {
   overflow: hidden;
 }
 
-/* Brand */
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 20px 18px 16px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.brand-logo {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  background: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: -.5px;
-  flex-shrink: 0;
-}
-
-.brand-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: -.2px;
-  display: block;
-  line-height: 1.2;
-}
-
-.brand-sub {
-  font-size: 10.5px;
-  color: var(--text-muted);
-  display: block;
-  letter-spacing: .1px;
-  margin-top: 2px;
-}
-
 /* Nav */
 .nav {
   display: flex;
@@ -984,11 +943,6 @@ html, body {
   --text-code:     #004E85;
 }
 
-/* Brand logo */
-[data-theme="iracing"] .brand-logo {
-  background: var(--accent);
-}
-
 /* Sidebar */
 [data-theme="iracing"] #sidebar {
   background: #CDCDCF;
@@ -1146,16 +1100,9 @@ html, body {
   color: var(--text-muted);
 }
 
-/* Brand identity */
-.brand-identity {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 /* Race button */
 .race-btn-wrap {
-  padding: 10px 8px 4px;
+  padding: 14px 8px 4px;
 }
 
 .race-btn {
@@ -1738,3 +1685,79 @@ html, body {
   white-space: nowrap;
 }
 .toast-undo-btn:hover { background: rgba(255,255,255,0.22); }
+
+/* Profile line (below Apps h1) */
+.page-profile-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  margin-bottom: -2px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.page-profile-line::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+[data-theme="iracing"] .page-profile-line {
+  color: var(--text-muted);
+}
+[data-theme="iracing"] .page-profile-line::before {
+  background: var(--accent);
+}
+
+/* Apps search input */
+.apps-search {
+  width: 170px;
+  padding: 6px 11px;
+  height: 34px;
+}
+
+/* Running-app indicator */
+.app-running-pip {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--success);
+  margin-top: 4px;
+  letter-spacing: .1px;
+}
+.app-running-pip::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+.app-card.running .app-running-pip {
+  display: flex;
+}
+.app-card.running {
+  border-color: rgba(36,168,94,0.28);
+}
+.app-card.running:hover {
+  border-color: rgba(36,168,94,0.45);
+}
+/* Keep actions always visible when app is running */
+.app-card.running .app-card-actions {
+  opacity: 1;
+}
+
+/* Stop button */
+.app-card:not(.running) .stop-btn { display: none; }
+.stop-btn:hover {
+  background: var(--danger-dim) !important;
+  color: var(--danger) !important;
+}
