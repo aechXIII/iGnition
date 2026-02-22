@@ -62,6 +62,8 @@ If you have used iRacingManager before, iGnition is a spiritual successor. Same 
 2. Run the installer (no admin rights needed)
 3. iGnition installs to `%LOCALAPPDATA%\iGnition`
 
+**Updating:** just run the new installer over the existing one - your apps and profiles are preserved.
+
 **Requirements:** Windows 10 or 11 (64-bit). Edge WebView2 Runtime is required and is already built into Windows 11. Windows 10 users can grab it free from [Microsoft](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
 
 ---
